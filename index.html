@@ -3,110 +3,63 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Multi-Convertisseur WebP</title>
-    <style>
-        body {
-            font-family: system-ui, -apple-system, sans-serif;
-            min-height: 100vh;
-            margin: 0;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            background-color: #f3f4f6;
-        }
-        .card {
-            background: white;
-            padding: 3rem;
-            border-radius: 1rem;
-            box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1);
-            text-align: center;
-            max-width: 500px;
-            width: 100%;
-        }
-        h1 { margin-bottom: 0.5rem; color: #1f2937; }
-        p { color: #6b7280; margin-bottom: 2rem; }
-        
-        .upload-btn-wrapper {
-            position: relative;
-            overflow: hidden;
-            display: inline-block;
-            margin-bottom: 20px;
-        }
-        .btn {
-            border: 2px solid #2563eb;
-            color: white;
-            background-color: #2563eb;
-            padding: 15px 30px;
-            border-radius: 8px;
-            font-size: 18px;
-            font-weight: bold;
-            cursor: pointer;
-            transition: 0.2s;
-        }
-        .btn:hover { background-color: #1d4ed8; }
-        
-        /* Input invisible mais actif */
-        .upload-btn-wrapper input[type=file] {
-            font-size: 100px;
-            position: absolute;
-            left: 0;
-            top: 0;
-            opacity: 0;
-            cursor: pointer;
-            height: 100%;
-            width: 100%;
-        }
+    <title>Convertisseur WebP Pro</title>
+    
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#2563eb">
 
-        #log {
-            text-align: left;
-            background: #f8fafc;
-            padding: 10px;
-            border-radius: 6px;
-            max-height: 150px;
-            overflow-y: auto;
-            border: 1px solid #e2e8f0;
-            font-size: 0.85rem;
-            color: #334155;
-            display: none; /* Caché tant qu'il n'y a rien */
-        }
-        .success { color: #059669; }
-        .info { color: #2563eb; font-weight: bold; margin-bottom: 5px; display: block;}
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    
+    <style>
+        body { font-family: system-ui, -apple-system, sans-serif; height: 100vh; margin: 0; display: flex; justify-content: center; align-items: center; background-color: #f3f4f6; }
+        .card { background: white; padding: 2.5rem; border-radius: 1rem; box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1); text-align: center; max-width: 450px; width: 100%; }
+        input[type="text"] { width: 80%; padding: 10px; margin-bottom: 15px; border: 1px solid #cbd5e1; border-radius: 6px; }
+        .btn { display: block; width: 100%; border: none; color: white; background-color: #2563eb; padding: 15px 0; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer; margin-top: 10px; }
+        .btn:hover { background-color: #1d4ed8; }
+        .upload-wrapper { position: relative; overflow: hidden; margin-bottom: 10px; }
+        .upload-wrapper input { position: absolute; left: 0; top: 0; opacity: 0; width: 100%; height: 100%; cursor: pointer; }
+        #status { margin-top: 15px; font-size: 0.9rem; color: #64748b; min-height: 20px; }
     </style>
 </head>
 <body>
 
 <div class="card">
-    <h1>⚡ Multi-Convertisseur</h1>
-    <p>Sélectionnez <strong>plusieurs images</strong> (JPG/PNG).<br>Elles seront toutes converties et téléchargées.</p>
+    <h1>📦 Convertisseur & Zip</h1>
+    <p>Convertit en WebP et crée un dossier ZIP.</p>
 
-    <div class="upload-btn-wrapper">
-        <button class="btn">Choisir les images</button>
-        <input type="file" id="fileInput" multiple accept="image/png, image/jpeg, image/jpg">
+    <input type="text" id="folderName" placeholder="Nom du dossier (ex: produit-tshirt)" value="images-webp">
+
+    <div class="upload-wrapper">
+        <button class="btn" style="background:#475569">📂 Choisir les images</button>
+        <input type="file" id="fileInput" multiple accept="image/*">
     </div>
 
-    <div id="log"></div>
+    <button id="downloadBtn" class="btn" style="display:none; background:#059669">⬇️ Télécharger le ZIP</button>
+
+    <div id="status"></div>
 </div>
 
 <script>
     const fileInput = document.getElementById('fileInput');
-    const logDiv = document.getElementById('log');
+    const downloadBtn = document.getElementById('downloadBtn');
+    const statusDiv = document.getElementById('status');
+    const folderInput = document.getElementById('folderName');
     
-    // Configuration Qualité (0.80 = 80%)
-    const QUALITY = 0.80; 
+    let zip = new JSZip();
+    let processedCount = 0;
+    let totalFiles = 0;
 
     fileInput.addEventListener('change', function(e) {
-        if (this.files && this.files.length > 0) {
-            logDiv.style.display = 'block';
-            logDiv.innerHTML = `<span class="info">Traitement de ${this.files.length} images...</span>`;
-            
-            // On transforme la liste de fichiers en tableau pour boucler dessus
-            Array.from(this.files).forEach((file, index) => {
-                // Petit délai entre chaque image pour éviter que le navigateur bloque
-                setTimeout(() => {
-                    processFile(file);
-                }, index * 200); 
-            });
-        }
+        if (!this.files.length) return;
+        
+        // Reset
+        zip = new JSZip();
+        processedCount = 0;
+        totalFiles = this.files.length;
+        downloadBtn.style.display = 'none';
+        statusDiv.textContent = `Conversion de ${totalFiles} images en cours...`;
+
+        Array.from(this.files).forEach(file => processFile(file));
     });
 
     function processFile(file) {
@@ -120,30 +73,44 @@
                 const ctx = canvas.getContext('2d');
                 ctx.drawImage(img, 0, 0);
 
-                const dataUrl = canvas.toDataURL('image/webp', QUALITY);
-                const originalName = file.name.substring(0, file.name.lastIndexOf('.'));
-                const newName = originalName + '.webp';
-
-                downloadImage(dataUrl, newName);
+                // Conversion WebP
+                const dataUrl = canvas.toDataURL('image/webp', 0.80);
                 
-                // Ajouter une ligne de log
-                const p = document.createElement('div');
-                p.className = 'success';
-                p.textContent = `✅ ${newName} téléchargé`;
-                logDiv.appendChild(p);
+                // Retirer l'en-tête data:image... pour le zip
+                const base64 = dataUrl.split(',')[1];
+                
+                // Nom du fichier
+                const originalName = file.name.substring(0, file.name.lastIndexOf('.'));
+                zip.file(originalName + ".webp", base64, {base64: true});
+
+                processedCount++;
+                statusDiv.textContent = `Traitement : ${processedCount} / ${totalFiles}`;
+
+                if (processedCount === totalFiles) {
+                    statusDiv.textContent = "✅ Prêt ! Cliquez sur télécharger.";
+                    downloadBtn.style.display = 'block';
+                }
             }
             img.src = event.target.result;
         }
         reader.readAsDataURL(file);
     }
 
-    function downloadImage(dataUrl, filename) {
-        const link = document.createElement('a');
-        link.href = dataUrl;
-        link.download = filename;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
+    downloadBtn.addEventListener('click', function() {
+        statusDiv.textContent = "Génération du ZIP...";
+        zip.generateAsync({type:"blob"}).then(function(content) {
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(content);
+            const name = folderInput.value || "images-webp";
+            link.download = name + ".zip";
+            link.click();
+            statusDiv.textContent = "ZIP téléchargé !";
+        });
+    });
+
+    // Enregistrement du Service Worker pour la PWA
+    if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('sw.js');
     }
 </script>
 
